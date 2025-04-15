@@ -1,0 +1,4 @@
+Complete solution restructuring
+- Reorganized project structure
+- Standardized naming to Hllch
+- Updated all dependencies

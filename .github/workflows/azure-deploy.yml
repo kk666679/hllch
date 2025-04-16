@@ -3,6 +3,7 @@ name: Azure Deployment
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   deploy:
@@ -12,17 +13,37 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    # Cache .NET dependencies to speed up builds
+    - name: Cache .NET SDK and NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.dotnet
+          ~/.nuget/packages
+          **/bin
+          **/obj
+        key: ${{ runner.os }}-dotnet-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-dotnet-
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: '9.0.x'
         
+    # Build with --no-restore (faster, assumes caching works)
     - name: Build
-      run: dotnet build --configuration Release
+      run: dotnet build --configuration Release --no-restore
       
+    # Run tests (optional but recommended)
     - name: Test
-      run: dotnet test
+      run: dotnet test --no-build --verbosity normal
       
+    # Publish to a folder (required for Azure deployment)
+    - name: Publish
+      run: dotnet publish -c Release -o ./publish
+      
+    # Azure deployment steps (unchanged from your original)
     - name: Login to Azure
       uses: azure/login@v1
       with:
@@ -33,4 +54,9 @@ jobs:
       with:
         azcliversion: 2.40.0
         inlineScript: |
-          az containerapp up             --name hllch-api             --resource-group ${{ vars.AZURE_RG }}             --location eastus             --environment ${{ vars.CONTAINERAPPS_ENV }}             --source ./src/Api
+          az containerapp up \
+            --name hllch-api \
+            --resource-group ${{ vars.AZURE_RG }} \
+            --location eastus \
+            --environment ${{ vars.CONTAINERAPPS_ENV }} \
+            --source ./src/Api
